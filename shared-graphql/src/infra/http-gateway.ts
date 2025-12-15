@@ -1,5 +1,18 @@
 import { IPaymentGateway, AuthorizationResult, CaptureResult, RefundResult } from '../ports/gateway';
 
+/**
+ * HttpPaymentGateway
+ *
+ * SOLID notes:
+ * - Single Responsibility: this class handles HTTP communication with an
+ *   external payment provider only. It transforms requests/responses to the
+ *   `IPaymentGateway` contract.
+ * - Dependency Inversion: implements `IPaymentGateway` so the higher-level
+ *   payment service depends on the abstraction and not on this concrete class.
+ * - Open/Closed: the class can be extended or replaced (e.g., add headers,
+ *   retries, or different serialization) without changing the service logic.
+ */
+
 // Use global fetch when available (Node 18+), otherwise dynamically import `node-fetch` at runtime.
 let _fetch: typeof fetch | null = null;
 async function getFetch(): Promise<typeof fetch> {

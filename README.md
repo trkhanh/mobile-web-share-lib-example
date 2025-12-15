@@ -84,3 +84,15 @@ Files of interest
 - `web-bff/src/server.ts`
 
 License: none included.
+
+**ARCHITECTURE & DESIGN**
+
+- **High level:** the `shared-graphql` package contains pure business logic, typed GraphQL schema/resolvers, and service composition (factories). BFFs (`mobile-bff`, `web-bff`) import and compose the shared package.
+- **SOLID summary:**
+  - **Single Responsibility:** modules are small and focused — e.g., resolvers adapt services, services orchestrate flows, infra modules handle persistence or HTTP only.
+  - **Open/Closed:** behavior is extensible via dependency injection and replacement of implementations (provide different `IPaymentGateway`/`IPaymentStore`).
+  - **Liskov Substitution:** implementations of ports (gateway/store/logger) should honor contracts so they can be substituted without changing caller logic.
+  - **Interface Segregation:** ports expose small, focused interfaces (`IPaymentGateway`, `IPaymentStore`, `ILogger`).
+  - **Dependency Inversion:** high-level services depend on abstractions; concrete implementations are provided at the composition boundary (`src/factories/service-factory.ts`).
+
+- See `Architecture.md` at the repo root for a visual diagram (Mermaid) showing how `shared-graphql` components and consumers fit together.

@@ -1,5 +1,14 @@
 import { IPaymentGateway, AuthorizationResult, CaptureResult, RefundResult } from '../ports/gateway';
 
+/**
+ * MockGateway
+ *
+ * SOLID notes:
+ * - Single Responsibility: provides a fake implementation of the payment
+ *   gateway for tests and local runs.
+ * - Dependency Inversion: implements `IPaymentGateway` so it can be injected
+ *   into services in place of real gateways during testing.
+ */
 export class MockGateway implements IPaymentGateway {
   async authorize(amount: number, currency: string, from: string, to: string): Promise<AuthorizationResult> {
     // Simple mock: decline amounts <=0, otherwise return fake providerRef

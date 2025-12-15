@@ -1,5 +1,17 @@
 import { ValidatePayeeResult } from '../types/payee';
 
+/**
+ * Payee resolvers / helpers
+ *
+ * SOLID notes:
+ * - Single Responsibility: these functions are small, focused helpers for payee
+ *   validation (name similarity, account format). They contain no side-effects
+ *   and do not perform I/O or persistence.
+ * - Open/Closed: the algorithms are encapsulated in functions that can be
+ *   replaced or extended (e.g., swap Levenshtein for a faster library) without
+ *   changing callers.
+ * - Interface Segregation: consumers import only the helpers they need.
+ */
 export const calculateNameSimilarity = (name1: string, name2: string): number => {
   // Use Levenshtein distance to compute similarity ratio.
   const s1 = name1.toLowerCase();

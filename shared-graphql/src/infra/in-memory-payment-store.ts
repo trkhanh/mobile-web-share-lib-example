@@ -1,6 +1,15 @@
 import { IPaymentStore } from '../ports/payment-store';
 import { Payment } from '../types/payment';
 
+/**
+ * InMemoryPaymentStore
+ *
+ * SOLID notes:
+ * - Single Responsibility: keeps a simple in-memory representation of payments
+ *   for tests and examples — persistence concerns are isolated here.
+ * - Dependency Inversion: implements `IPaymentStore` allowing tests or local
+ *   runs to swap this for a real DB-backed store without changing service code.
+ */
 export class InMemoryPaymentStore implements IPaymentStore {
   private map = new Map<string, Payment>();
 
