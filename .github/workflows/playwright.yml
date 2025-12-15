@@ -1,0 +1,51 @@
+name: Playwright E2E
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install BFF and shared deps
+        run: |
+          set -e
+          cd mobile-bff && npm ci || true
+          cd ../web-bff && npm ci || true
+          cd ../shared-graphql && npm ci || true
+          cd ..
+
+      - name: Build shared package
+        run: |
+          cd shared-graphql && npm run build
+
+      - name: Install Playwright deps
+        run: |
+          cd playwright-e2e && npm ci
+
+      - name: Start mobile BFF
+        run: node -r ts-node/register ./mobile-bff/src/server.ts &
+
+      - name: Start web BFF
+        run: node -r ts-node/register ./web-bff/src/server.ts &
+
+      - name: Wait for services
+        run: |
+          n=0; until curl -sSf http://localhost:4001/ -I || [ $n -ge 20 ]; do n=$((n+1)); sleep 1; done
+          n=0; until curl -sSf http://localhost:4002/graphql -I || [ $n -ge 20 ]; do n=$((n+1)); sleep 1; done
+
+      - name: Run Playwright tests
+        run: |
+          cd playwright-e2e
+          npx playwright test --config=playwright.config.ts --workers=1
