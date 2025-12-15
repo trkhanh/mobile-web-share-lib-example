@@ -2,16 +2,14 @@ import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { payeeTypeDefs } from '../../shared-graphql/src/graphql/payee-schema';
-import { createPayeeService } from '../../shared-graphql/src/services/payee-service';
+import { createServices } from '../../shared-graphql/src/factories/service-factory';
+import { makePayeeResolvers } from '../../shared-graphql/src/graphql/payee-resolvers';
 
-const webDataSource = {
-  fetchRegisteredName: async (accountNumber: string, bankCode: string) => {
-    if (accountNumber === '11111111') return 'John Doe';
-    return 'Web Lookup Name';
-  }
-};
+// Create shared services with factory (uses env flags or defaults)
+const services = createServices();
 
-const payeeService = createPayeeService({ dataSource: webDataSource, logger: console });
+// Get base resolvers from shared library
+const baseResolvers = makePayeeResolvers(services);
 
 const webTypeDefs = `
 extend type ValidatePayeeResult {
@@ -19,16 +17,17 @@ extend type ValidatePayeeResult {
 }
 `;
 
+// Web BFF adds web-specific fields
 const webResolvers = {
   Query: {
+    ...baseResolvers.Query,
     validatePayee: async (_: any, { input }: any, context: any) => {
-      const result = await payeeService.validatePayee(input);
+      const result = await services.payeeService.validatePayee(input);
       return {
         ...result,
         validationId: `val_${Date.now()}`
       };
-    },
-    getPayee: async (_: any, { id }: any) => payeeService.getPayee(id)
+    }
   }
 };
 

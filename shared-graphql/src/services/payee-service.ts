@@ -1,12 +1,21 @@
-import {
-  PayeeServiceDependencies,
-  ValidatePayeeInput,
-  ValidatePayeeResult
-} from '../types/payee';
+import { ValidatePayeeInput, ValidatePayeeResult } from '../types/payee';
 import { validateAccountNumberFormat, validatePayeeName } from '../helpers/payee-helpers';
+import { IPayeeDataSource } from '../ports/payee-data-source';
+import { ILogger } from '../ports/logger';
 
+/**
+ * PayeeService - orchestrates payee validation flows
+ *
+ * SOLID notes:
+ * - Single Responsibility: validates payees by calling downstream data sources
+ *   and applying business rules (name similarity, account format).
+ * - Dependency Inversion: depends on IPayeeDataSource and ILogger abstractions.
+ */
 export class PayeeService {
-  constructor(private dependencies: PayeeServiceDependencies) {}
+  constructor(
+    private dataSource: IPayeeDataSource,
+    private logger: ILogger
+  ) {}
 
   async validatePayee(input: ValidatePayeeInput): Promise<ValidatePayeeResult> {
     try {
@@ -21,30 +30,23 @@ export class PayeeService {
         };
       }
 
-      const registeredName = await this.dependencies.dataSource.fetchRegisteredName(
+      // Call downstream system to fetch registered name
+      const registeredName = await this.dataSource.fetchRegisteredName(
         input.accountNumber,
         input.bankCode
       );
 
       const validationResult = validatePayeeName(input.accountName, registeredName);
 
-      this.dependencies.logger?.info('Payee validation completed', {
+      this.logger.info('Payee validation completed', {
         accountNumber: input.accountNumber,
         result: validationResult
       });
 
       return validationResult;
     } catch (error) {
-      this.dependencies.logger?.error('Payee validation failed', error);
+      this.logger.error('Payee validation failed', error);
       throw error;
     }
   }
-
-  async getPayee(id: string) {
-    return { id, name: 'John Doe', accountNumber: '00000000', bankCode: '000' };
-  }
 }
-
-export const createPayeeService = (dependencies: PayeeServiceDependencies): PayeeService => {
-  return new PayeeService(dependencies);
-};

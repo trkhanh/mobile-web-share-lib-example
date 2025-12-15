@@ -4,8 +4,9 @@
  - **Summary:** This repository centers a shared library `shared-graphql` that contains business logic, GraphQL schema/resolvers, and service implementations (payment/payee). Two BFF consumers (`mobile-bff`, `web-bff`) import the shared package for GraphQL types/resolvers and use composed services via the `createServices` factory. The shared library follows SOLID principles by depending on small ports (`IPaymentGateway`, `IPaymentStore`, `ILogger`) and composing concrete infra at the application boundary.
 
  - **Technical wiring & env flags (detailed):**
-   - Composition: `createServices(overrides?)` is the single place where concrete implementations are wired. Tests and examples pass `overrides` (mocks, fakes, or test doubles) to replace `ILogger`, `IPaymentStore`, or `IPaymentGateway` for isolation.
-   - Gateway selection: if `overrides.paymentGateway` is provided it is used. Otherwise the factory uses environment wiring: when `USE_WIREMOCK=true` it constructs `HttpPaymentGateway(PAYMENT_STUB_URL||http://localhost:8080)` which forwards to a Wiremock stub; otherwise a local `MockGateway` is used. This makes it easy to switch between fast in-process mocks and a realistic stubbed HTTP surface for integration tests.
+   - Composition: `createServices(overrides?)` is the single place where concrete implementations are wired. Tests and examples pass `overrides` (mocks, fakes, or test doubles) to replace `ILogger`, `IPaymentStore`, `IPaymentGateway`, or `IPayeeDataSource` for isolation.
+   - Payment gateway selection: if `overrides.paymentGateway` is provided it is used. Otherwise the factory uses environment wiring: when `USE_WIREMOCK=true` it constructs `HttpPaymentGateway(PAYMENT_STUB_URL||http://localhost:8080)` which forwards to a Wiremock stub; otherwise a local `MockGateway` is used.
+   - Payee data source selection: if `overrides.payeeDataSource` is provided it is used. Otherwise when `USE_PAYEE_REGISTRY=true` it constructs `HttpPayeeDataSource(PAYEE_REGISTRY_URL||http://localhost:8080)` to call the real downstream registry; otherwise it uses `MockPayeeDataSource` with hardcoded test data.
    - Store variations: the default `InMemoryPaymentStore` is ideal for unit tests and examples. Replace it with a DB-backed `IPaymentStore` implementation in staging/production without changing service logic.
    - Logger: `ConsoleLogger` is the default simple implementation; production can inject a structured logger implementing `ILogger`.
 
@@ -21,9 +22,13 @@
    - Payment creation (failure path):
      1. If `authorize` returns failure, `PaymentService` marks the record `FAILED`, logs a warning, and returns a failure result to the client.
 
-   - Payee validation flow (example):
-     1. Client -> BFF GraphQL query for payee validation.
-     2. Resolver uses `payee-resolvers` helpers like `calculateNameSimilarity` and `validateAccountNumberFormat` to produce a validation response (pure functions, no I/O).
+   - Payee validation flow:
+     1. Client -> BFF GraphQL query (`validatePayee`).
+     2. Resolver (`makePayeeResolvers`) calls `payeeService.validatePayee(input)`.
+     3. `PayeeService` validates account format using pure helpers from `payee-helpers.ts`.
+     4. If format valid, the service calls `IPayeeDataSource.fetchRegisteredName(...)` to query the downstream payee registry (bank API, KYC provider).
+     5. The service compares input name to registered name using `calculateNameSimilarity` helper.
+     6. Result (isValid, matchLevel, confidence) is returned to the client.
 
  - **Testing & stubbing patterns:**
    - Unit tests: inject `MockGateway` and `InMemoryPaymentStore` or test doubles via `createServices({ ...overrides })` for deterministic behavior.
@@ -48,12 +53,15 @@ flowchart LR
       IM["InMemoryPaymentStore"]
       MG["MockGateway"]
       HG["HttpPaymentGateway"]
+      MPD["MockPayeeDataSource"]
+      HPD["HttpPayeeDataSource"]
     end
     subgraph Ports ["ports (interfaces)"]
       direction LR
       ILogger["ILogger"]
       IPG["IPaymentGateway"]
       IPS["IPaymentStore"]
+      IPDS["IPayeeDataSource"]
     end
     subgraph Services ["services"]
       direction TB
@@ -62,24 +70,34 @@ flowchart LR
     end
     subgraph GraphQL ["graphql / resolvers / schema"]
       direction TB
-      Schema["Schemas\npayee.ts, payment-schema.ts"]
-      Resolvers["Resolvers\npayment-resolvers.ts"]
+      Schema["Schemas\npayee-schema.ts, payment-schema.ts"]
+      PaymentResolvers["Payment Resolvers\npayment-resolvers.ts"]
+      PayeeResolvers["Payee Resolvers\npayee-resolvers.ts"]
       Helpers["Helpers\npayee-helpers.ts"]
       Factories["Factories\nservice-factory.ts"]
     end
 
     SF --> PaymentService
+    SF --> PayeeService
     SF --> CL
     SF --> IM
     SF --> MG
     SF --> HG
+    SF --> MPD
+    SF --> HPD
 
-    PaymentService -->|implements| IPG
+    PaymentService -->|uses| IPG
     PaymentService -->|stores| IPS
     PaymentService -->|logs| ILogger
+    
+    PayeeService -->|queries| IPDS
+    PayeeService -->|logs| ILogger
+    PayeeService -->|uses| Helpers
 
-    Resolvers --> PaymentService
-    Schema --> Resolvers
+    PaymentResolvers --> PaymentService
+    PayeeResolvers --> PayeeService
+    Schema --> PaymentResolvers
+    Schema --> PayeeResolvers
     Factories --> SF
   end
 
@@ -93,29 +111,37 @@ flowchart LR
   end
 
   WebBFF -->|imports schema & resolvers| Schema
-  WebBFF -->|uses service API| PaymentService
+  WebBFF -->|uses| PaymentService
+  WebBFF -->|uses| PayeeService
   MobileBFF -->|imports schema & resolvers| Schema
-  MobileBFF -->|uses service API| PaymentService
+  MobileBFF -->|uses| PaymentService
+  MobileBFF -->|uses| PayeeService
   E2E -->|tests flows against| WebBFF
   E2E -->|may use| Examples
   Examples -->|exercise| SF
-  Resolvers --> Helpers
 
-  %% External systems & stub
+  %% External systems & stubs
   subgraph External
     direction TB
     PaymentAPI["External Payment Provider"]
+    PayeeRegistry["Payee Registry\n(Bank API / KYC)"]
     Wiremock["Wiremock Stub\n(USE_WIREMOCK=true)"]
   end
 
   %% Gateway relationships and selection logic
-  HttpPaymentGateway -->|HTTP ->| PaymentAPI
+  HttpPaymentGateway -->|HTTP| PaymentAPI
   MockGateway -->|local simulated responses| PaymentService
   PaymentService -->|gateway calls via IPaymentGateway| IPG
+  
+  HPD -->|HTTP| PayeeRegistry
+  MPD -->|mock data| PayeeService
+  PayeeService -->|data source calls via IPayeeDataSource| IPDS
 
   %% Env-driven wiring
-  SF -.->|if USE_WIREMOCK=true ->| HttpPaymentGateway
-  SF -.->|else ->| MockGateway
+  SF -.->|if USE_WIREMOCK=true| HttpPaymentGateway
+  SF -.->|else| MockGateway
+  SF -.->|if USE_PAYEE_REGISTRY=true| HPD
+  SF -.->|else| MPD
   Wiremock -->|mocks payment endpoints| HttpPaymentGateway
 ```
 

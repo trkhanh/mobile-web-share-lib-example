@@ -1,31 +1,26 @@
 import { ApolloServer } from 'apollo-server';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { payeeTypeDefs } from '../../shared-graphql/src/graphql/payee-schema';
-import { createPayeeService } from '../../shared-graphql/src/services/payee-service';
+import { createServices } from '../../shared-graphql/src/factories/service-factory';
+import { makePayeeResolvers } from '../../shared-graphql/src/graphql/payee-resolvers';
 
-const mobileDataSource = {
-  fetchRegisteredName: async (accountNumber: string, bankCode: string) => {
-    // Mock mobile-specific API call
-    if (accountNumber === '12345678') return 'Acme Corp';
-    return 'Mobile Lookup Name';
-  }
-};
+// Create shared services with factory (uses env flags or defaults)
+const services = createServices();
 
-const payeeService = createPayeeService({
-  dataSource: mobileDataSource,
-  logger: console
-});
+// Get base resolvers from shared library
+const baseResolvers = makePayeeResolvers(services);
 
+// Mobile BFF adds mobile-specific fields
 const mobileResolvers = {
   Query: {
+    ...baseResolvers.Query,
     validatePayee: async (_: any, { input }: any, context: any) => {
-      const result = await payeeService.validatePayee(input);
+      const result = await services.payeeService.validatePayee(input);
       return {
         ...result,
         mobileOptimizedPayload: JSON.stringify({ ...result, deviceId: 'mobile-device-123' })
       };
-    },
-    getPayee: async (_: any, { id }: any) => payeeService.getPayee(id)
+    }
   }
 };
 
