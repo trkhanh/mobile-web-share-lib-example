@@ -13,6 +13,12 @@ const webDataSource = {
 
 const payeeService = createPayeeService({ dataSource: webDataSource, logger: console });
 
+const webTypeDefs = `
+extend type ValidatePayeeResult {
+  validationId: ID!
+}
+`;
+
 const webResolvers = {
   Query: {
     validatePayee: async (_: any, { input }: any, context: any) => {
