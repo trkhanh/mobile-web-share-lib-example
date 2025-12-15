@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/payments/authorize"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "success": true,
+      "providerRef": "wiremock-auth-{{now offset='0' format='x'}}"
+    },
+    "headers": {
+      "Content-Type": "application/json"
+    }
+  }
+}

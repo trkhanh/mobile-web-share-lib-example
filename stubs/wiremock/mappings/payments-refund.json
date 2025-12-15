@@ -1,0 +1,13 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/payments/refund"
+  },
+  "response": {
+    "status": 200,
+    "jsonBody": {
+      "success": true
+    },
+    "headers": { "Content-Type": "application/json" }
+  }
+}

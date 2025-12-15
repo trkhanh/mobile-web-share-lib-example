@@ -7,14 +7,20 @@
     "build": "tsc",
     "test:smoke": "npm run build && node dist/examples/test-validate.js",
     "start:example": "npm run build && node dist/examples/run-validate.js",
+    "test:payment": "npm run build && node dist/examples/payment-test.js",
     "lint": "echo \"No linter configured\""
   },
   "dependencies": {
+    "@types/node-fetch": "^2.6.13",
     "graphql": "^16.6.0",
+    "node-fetch": "^3.3.2",
     "yarn": "^1.22.22"
   },
   "devDependencies": {
+    "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.0"
   }
