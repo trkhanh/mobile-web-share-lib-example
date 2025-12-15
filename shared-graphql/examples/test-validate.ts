@@ -1,4 +1,4 @@
-import { calculateNameSimilarity, validatePayeeName, validateAccountNumberFormat } from '../src/resolvers/payee-resolvers';
+import { calculateNameSimilarity, validatePayeeName, validateAccountNumberFormat } from '../src/helpers/payee-helpers';
 
 function assert(cond: boolean, msg: string) {
   if (!cond) {

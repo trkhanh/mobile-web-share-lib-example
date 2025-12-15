@@ -1,7 +1,7 @@
 import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
 import { makeExecutableSchema } from '@graphql-tools/schema';
-import { payeeTypeDefs } from '../../shared-graphql/src/schema/payee';
+import { payeeTypeDefs } from '../../shared-graphql/src/graphql/payee-schema';
 import { createPayeeService } from '../../shared-graphql/src/services/payee-service';
 
 const webDataSource = {

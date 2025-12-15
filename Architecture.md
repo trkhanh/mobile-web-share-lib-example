@@ -63,7 +63,8 @@ flowchart LR
     subgraph GraphQL ["graphql / resolvers / schema"]
       direction TB
       Schema["Schemas\npayee.ts, payment-schema.ts"]
-      Resolvers["Resolvers\npayment-resolvers.ts, payee-resolvers.ts"]
+      Resolvers["Resolvers\npayment-resolvers.ts"]
+      Helpers["Helpers\npayee-helpers.ts"]
       Factories["Factories\nservice-factory.ts"]
     end
 
@@ -98,6 +99,7 @@ flowchart LR
   E2E -->|tests flows against| WebBFF
   E2E -->|may use| Examples
   Examples -->|exercise| SF
+  Resolvers --> Helpers
 
   %% External systems & stub
   subgraph External

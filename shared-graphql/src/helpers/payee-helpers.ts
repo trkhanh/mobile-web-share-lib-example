@@ -1,19 +1,14 @@
 import { ValidatePayeeResult } from '../types/payee';
 
 /**
- * Payee resolvers / helpers
+ * Payee helpers (pure functions)
  *
  * SOLID notes:
- * - Single Responsibility: these functions are small, focused helpers for payee
- *   validation (name similarity, account format). They contain no side-effects
- *   and do not perform I/O or persistence.
- * - Open/Closed: the algorithms are encapsulated in functions that can be
- *   replaced or extended (e.g., swap Levenshtein for a faster library) without
- *   changing callers.
+ * - Single Responsibility: focused helpers for payee validation (name similarity, account format).
+ * - Open/Closed: algorithms are encapsulated and easily swappable.
  * - Interface Segregation: consumers import only the helpers they need.
  */
 export const calculateNameSimilarity = (name1: string, name2: string): number => {
-  // Use Levenshtein distance to compute similarity ratio.
   const s1 = name1.toLowerCase();
   const s2 = name2.toLowerCase();
 
@@ -21,7 +16,6 @@ export const calculateNameSimilarity = (name1: string, name2: string): number =>
   const len2 = s2.length;
   if (len1 === 0 && len2 === 0) return 1.0;
 
-  // initialize matrix
   const dp: number[][] = Array.from({ length: len1 + 1 }, () => new Array(len2 + 1).fill(0));
   for (let i = 0; i <= len1; i++) dp[i][0] = i;
   for (let j = 0; j <= len2; j++) dp[0][j] = j;
@@ -30,9 +24,9 @@ export const calculateNameSimilarity = (name1: string, name2: string): number =>
     for (let j = 1; j <= len2; j++) {
       const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
       dp[i][j] = Math.min(
-        dp[i - 1][j] + 1, // deletion
-        dp[i][j - 1] + 1, // insertion
-        dp[i - 1][j - 1] + cost // substitution
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
       );
     }
   }

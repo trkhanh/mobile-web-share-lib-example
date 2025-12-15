@@ -3,7 +3,7 @@ import {
   ValidatePayeeInput,
   ValidatePayeeResult
 } from '../types/payee';
-import { validateAccountNumberFormat, validatePayeeName } from '../resolvers/payee-resolvers';
+import { validateAccountNumberFormat, validatePayeeName } from '../helpers/payee-helpers';
 
 export class PayeeService {
   constructor(private dependencies: PayeeServiceDependencies) {}
