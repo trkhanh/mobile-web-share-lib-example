@@ -1,0 +1,21 @@
+{
+  "name": "@company/shared-graphql",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test:smoke": "npm run build && node dist/examples/test-validate.js",
+    "start:example": "npm run build && node dist/examples/run-validate.js",
+    "lint": "echo \"No linter configured\""
+  },
+  "dependencies": {
+    "graphql": "^16.6.0",
+    "yarn": "^1.22.22"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.0"
+  }
+}
