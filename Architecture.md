@@ -385,7 +385,7 @@ The following diagram shows the `shared-graphql` library and its consumers.
         end
         
         subgraph Schema ["GraphQL Schema"]
-            PaymentSchema["payment-schema.ts"]
+            PaymentSchema["payment-schemaw.ts"]
             PayeeSchema["payee-schema.ts"]
         end
         
