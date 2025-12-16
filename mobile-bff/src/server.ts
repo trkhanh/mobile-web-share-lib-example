@@ -9,9 +9,10 @@ import { createPayeeService } from '../../shared-graphql/src/services/payee-serv
 import { createPaymentService } from '../../shared-graphql/src/services/payment-service-functional';
 import { validatePayee } from '../../shared-graphql/src/core/payee-validation';
 import { ILogger } from '../../shared-graphql/src/ports/logger';
+import { createCompleteMobileGateway, MobileContext } from './custom-gateway';
 
 /**
- * MOBILE BFF - Extension Scenarios
+ * MOBILE BFF - Extension Scenarios with Gateway Customization
  * 
  * Shows how consumers can extend shared library in different ways:
  * 1. Custom logger with mobile-specific tracking
@@ -19,6 +20,7 @@ import { ILogger } from '../../shared-graphql/src/ports/logger';
  * 3. Extending GraphQL resolvers with mobile fields
  * 4. Adding mobile-only mutations
  * 5. Using core functions directly for custom flows
+ * 6. **NEW** Custom gateway with mobile headers, error handling, and retry logic
  */
 
 // Scenario 1: Custom logger with mobile analytics
@@ -36,6 +38,16 @@ const mobileLogger: ILogger = {
     // Could send to crash reporting service
     // sendToCrashlytics(message, meta);
   }
+};
+
+// Scenario 6: Mobile Gateway with Custom Headers, Error Handling, and Retry Logic
+const createMobileGatewayForContext = (context: MobileContext) => {
+  console.log(`\n🚀 [MOBILE BFF] Creating custom gateway for ${context.platform} device ${context.deviceId}`);
+  console.log(`   App Version: ${context.appVersion}`);
+  console.log(`   Biometric: ${context.biometricEnabled ? 'Enabled' : 'Disabled'}`);
+  console.log(`   Features: Mobile headers ✅ | Error mapping ✅ | Fast retry ✅ | Response optimization ✅\n`);
+  
+  return createCompleteMobileGateway(context);
 };
 
 // Scenario 2: Custom data source with mobile-specific caching
@@ -181,15 +193,33 @@ const schema = makeExecutableSchema({
   resolvers: mobileResolvers as any
 });
 
+// Demo: Create services with mobile-customized gateway
+const mobileContext: MobileContext = {
+  deviceId: 'demo-device-123',
+  platform: 'iOS',
+  appVersion: '2.1.0',
+  userId: 'demo-user',
+  biometricEnabled: true
+};
+
+const mobileGateway = createMobileGatewayForContext(mobileContext);
+const mobileServices = createServices({
+  paymentGateway: mobileGateway,
+  logger: mobileLogger
+});
+
 const server = new ApolloServer({
   schema,
   context: ({ req }: any) => ({
-    // Extract device info from headers
+    // Extract device info from headers (in production)
     deviceInfo: {
-      deviceId: req.headers['x-device-id'],
+      deviceId: req.headers['x-device-id'] || 'demo-device-123',
       platform: req.headers['x-platform'] || 'iOS',
-      appVersion: req.headers['x-app-version'] || '1.0.0'
-    }
+      appVersion: req.headers['x-app-version'] || '2.1.0',
+      biometricEnabled: req.headers['x-biometric-enabled'] === 'true'
+    },
+    // Provide services with customized gateway
+    services: mobileServices
   })
 });
 
@@ -197,10 +227,16 @@ server.listen({ port: 4001 }).then(({ url }) => {
   console.log(`🚀 Mobile BFF ready at ${url}`);
   console.log(`
   📱 Mobile-specific extensions:
-  - Custom logger with analytics
-  - Device-based caching
-  - Biometric payment flow
-  - Quick validation (offline-first)
-  - Device context in all responses
+  ✅ Custom logger with analytics
+  ✅ Device-based caching
+  ✅ Biometric payment flow
+  ✅ Quick validation (offline-first)
+  ✅ Device context in all responses
+  
+  🔧 Gateway Customizations:
+  ✅ Mobile-specific headers (device ID, platform, app version)
+  ✅ Mobile-friendly error codes (NETWORK_ERROR, TIMEOUT, etc.)
+  ✅ Fast retry logic (500ms-2s, max 2 attempts)
+  ✅ Response optimization for bandwidth
   `);
 });

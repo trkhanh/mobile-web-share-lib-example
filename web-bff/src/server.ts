@@ -10,9 +10,10 @@ import { createPaymentService } from '../../shared-graphql/src/services/payment-
 import { ILogger } from '../../shared-graphql/src/ports/logger';
 import { IPaymentStore } from '../../shared-graphql/src/ports/payment-store';
 import { Payment } from '../../shared-graphql/src/types/payment';
+import { createCompleteWebGateway, WebContext } from './custom-gateway';
 
 /**
- * WEB BFF - Extension Scenarios
+ * WEB BFF - Extension Scenarios with Gateway Customization
  * 
  * Shows different extension patterns for web consumers:
  * 1. Session-aware logging with user context
@@ -20,6 +21,7 @@ import { Payment } from '../../shared-graphql/src/types/payment';
  * 3. Audit trail for compliance
  * 4. Rate limiting and fraud detection
  * 5. Web-specific GraphQL fields (pagination, sorting)
+ * 6. **NEW** Custom gateway with JWT auth, tracing, enrichment, and detailed errors
  */
 
 // Scenario 1: Session-aware logger with request tracing
@@ -35,6 +37,20 @@ const createWebLogger = (sessionId?: string): ILogger => ({
     // Could send to error tracking (Sentry, etc.)
   }
 });
+
+// Scenario 6: Web Gateway with JWT Auth, Tracing, Enrichment, and Detailed Errors
+const createWebGatewayForContext = (
+  getUserToken: () => Promise<string>,
+  context: WebContext,
+  getRequestId: () => string
+) => {
+  console.log(`\n🚀 [WEB BFF] Creating custom gateway for session ${context.sessionId}`);
+  console.log(`   User: ${context.userId}`);
+  console.log(`   IP: ${context.ipAddress}`);
+  console.log(`   Features: JWT Auth ✅ | Tracing ✅ | Audit logs ✅ | Detailed errors ✅ | Retry logic ✅\n`);
+  
+  return createCompleteWebGateway(getUserToken, context, getRequestId);
+};
 
 // Scenario 2: Redis-backed payment store (simulated for demo)
 const createRedisPaymentStore = (): IPaymentStore => {
@@ -282,10 +298,36 @@ async function start() {
   
   // Middleware to extract session/user context
   app.use((req, res, next) => {
-    (req as any).sessionId = req.headers['x-session-id'] || 'anonymous';
-    (req as any).userId = req.headers['x-user-id'] || 'guest';
+    (req as any).sessionId = req.headers['x-session-id'] || 'demo-session-123';
+    (req as any).userId = req.headers['x-user-id'] || 'demo-user';
     (req as any).isAdmin = req.headers['x-role'] === 'admin';
+    (req as any).requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     next();
+  });
+
+  // Demo: Create services with web-customized gateway
+  const getUserToken = async () => 'demo-jwt-token-xyz123';
+  
+  const webContext: WebContext = {
+    userId: 'demo-user',
+    sessionId: 'demo-session-123',
+    ipAddress: '192.168.1.100',
+    userAgent: 'Mozilla/5.0 (Web Demo)',
+    correlationId: 'demo-correlation-456'
+  };
+
+  const webGateway = createWebGatewayForContext(
+    getUserToken,
+    webContext,
+    () => `req-${Date.now()}`
+  );
+
+  const redisStore = createRedisPaymentStore();
+
+  const webServices = createServices({
+    paymentGateway: webGateway,
+    logger: createWebLogger(webContext.sessionId),
+    paymentStore: redisStore
   });
 
   const schema = makeExecutableSchema({ 
@@ -298,7 +340,10 @@ async function start() {
     context: ({ req }: any) => ({
       sessionId: req.sessionId,
       userId: req.userId,
-      isAdmin: req.isAdmin
+      isAdmin: req.isAdmin,
+      requestId: req.requestId,
+      // Provide services with customized gateway
+      services: webServices
     })
   });
   
@@ -309,12 +354,19 @@ async function start() {
     console.log('🚀 Web BFF ready at http://localhost:4002/graphql');
     console.log(`
     🌐 Web-specific extensions:
-    - Session-aware logging
-    - Redis-backed storage
-    - Complete audit trail
-    - Rate limiting & fraud detection
-    - Payment history with pagination
-    - Batch payment operations
+    ✅ Session-aware logging
+    ✅ Redis-backed storage
+    ✅ Complete audit trail
+    ✅ Rate limiting & fraud detection
+    ✅ Payment history with pagination
+    ✅ Batch payment operations
+    
+    🔧 Gateway Customizations:
+    ✅ JWT authentication headers
+    ✅ Distributed tracing (correlation ID, trace ID)
+    ✅ Response enrichment with audit logs
+    ✅ Detailed error messages with recovery steps
+    ✅ Patient retry logic (1s-10s, max 3 attempts)
     `);
   });
 }

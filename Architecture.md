@@ -679,11 +679,17 @@ flowchart TB
 
 ## 📚 Related Documentation
 
+- **[Gateway Customization Guide](./GATEWAY_CUSTOMIZATION.md)** - **NEW!** Complete guide for customizing downstream calls
+  - ✅ Custom headers (auth, tracking, device info)
+  - ✅ Response transformation (enrich, simplify, filter)
+  - ✅ Error code mapping (mobile vs web error messages)
+  - ✅ Retry logic and fault tolerance
 - **[GraphQL Customization Guide](./GRAPHQL_CUSTOMIZATION.md)** - **NEW!** Complete guide for BFFs with different GraphQL needs
   - ✅ Extend shared schemas with BFF-specific fields
   - ✅ Add custom queries and mutations
   - ✅ Create completely custom GraphQL APIs
   - ✅ 3 levels of flexibility with real examples
+- **[Design Flexibility Summary](./DESIGN_FLEXIBILITY.md)** - Executive summary of all customization points
 - **[BFF Extension Guide](./BFF_EXTENSION_GUIDE.md)** - Comprehensive guide for BFF customizations
 - **[Endpoint Customization Guide](./ENDPOINT_CUSTOMIZATION.md)** - How BFFs customize downstream endpoints
 - **[Shared Library Extension Guide](./shared-graphql/EXTENSION_GUIDE.md)** - Advanced extension patterns
