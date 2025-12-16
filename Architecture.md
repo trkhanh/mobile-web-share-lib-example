@@ -371,15 +371,197 @@ npx tsc --noEmit --project web-bff/tsconfig.json
 ### Visual Overview
 
 The following diagram shows the `shared-graphql` library and its consumers.
+#### 4-layer organization:
+```mermaid
+ flowchart TB
+    %% Four distinct layers with clear separation
+    subgraph L1 ["Layer 1: Contracts (Ports & Schema)"]
+        direction TB
+        subgraph Ports ["Ports (Interfaces)"]
+            IPG["IPaymentGateway"]
+            IPS["IPaymentStore"]
+            IPDS["IPayeeDataSource"]
+            ILogger["ILogger"]
+        end
+        
+        subgraph Schema ["GraphQL Schema"]
+            PaymentSchema["payment-schema.ts"]
+            PayeeSchema["payee-schema.ts"]
+        end
+        
+        subgraph Types ["TypeScript Types"]
+            PaymentTypes["payment-types.ts"]
+            PayeeTypes["payee-types.ts"]
+        end
+    end
+    
+    subgraph L2 ["Layer 2: Pure Business Logic"]
+        direction TB
+        subgraph CoreValidation ["Core Validation (Pure Functions)"]
+            PayeeValidation["payee-validation.ts<br/>calculateNameSimilarity()"]
+            PaymentValidation["payment-validation.ts<br/>validateAmount()"]
+        end
+        
+        subgraph BusinessRules ["Business Rules (Pure Functions)"]
+            RiskRules["risk-rules.ts<br/>calculateRiskScore()"]
+            ComplianceRules["compliance-rules.ts<br/>validateRegulations()"]
+        end
+        
+        subgraph Calculations ["Calculations (Pure Functions)"]
+            FeeCalculator["fee-calculator.ts<br/>calculateFee()"]
+            TaxCalculator["tax-calculator.ts<br/>calculateTax()"]
+        end
+    end
+    
+    subgraph L3 ["Layer 3: Service Layer (Functional Factories)"]
+        direction TB
+        SF["Service Factory<br/>createServices()"]
+        
+        PaymentService["PaymentService<br/>(functional factory)<br/>createPayment()"]
+        PayeeService["PayeeService<br/>(functional factory)<br/>validatePayee()"]
+        
+        SF --> PaymentService
+        SF --> PayeeService
+    end
+    
+    subgraph L4 ["Layer 4: Infrastructure & Platform"]
+        direction TB
+        subgraph Implementations ["Interface Implementations"]
+            HG["HttpPaymentGateway<br/>(implements IPaymentGateway)"]
+            MG["MockGateway<br/>(implements IPaymentGateway)"]
+            HPD["HttpPayeeDataSource<br/>(implements IPayeeDataSource)"]
+            MPD["MockPayeeDataSource<br/>(implements IPayeeDataSource)"]
+            IM["InMemoryPaymentStore<br/>(implements IPaymentStore)"]
+            CL["ConsoleLogger<br/>(implements ILogger)"]
+        end
+        
+        subgraph PlatformAdapters ["Platform Adapters"]
+            MobileAdapter["Mobile Adapter<br/>(offline, push, device)"]
+            WebAdapter["Web Adapter<br/>(session, cookies, realtime)"]
+        end
+        
+        subgraph GraphQLResolvers ["GraphQL Resolvers"]
+            PaymentResolvers["payment-resolvers.ts<br/>(uses services)"]
+            PayeeResolvers["payee-resolvers.ts<br/>(uses services)"]
+            Helpers["payee-helpers.ts<br/>(helper functions)"]
+        end
+    end
+    
+    %% Layer relationships
+    L1 --> L2
+    L2 --> L3
+    L3 --> L4
+    
+    %% Service dependencies
+    PaymentService -->|depends on| IPG
+    PaymentService -->|depends on| IPS
+    PaymentService -->|depends on| ILogger
+    PaymentService -->|uses pure logic| PaymentValidation
+    PaymentService -->|uses pure logic| FeeCalculator
+    PaymentService -->|uses pure logic| RiskRules
+    
+    PayeeService -->|depends on| IPDS
+    PayeeService -->|depends on| ILogger
+    PayeeService -->|uses pure logic| PayeeValidation
+    PayeeService -->|uses pure logic| ComplianceRules
+    
+    %% Infrastructure wiring
+    SF -->|injects| HG
+    SF -->|injects| MG
+    SF -->|injects| HPD
+    SF -->|injects| MPD
+    SF -->|injects| IM
+    SF -->|injects| CL
+    
+    %% Resolver relationships
+    PaymentResolvers -->|calls| PaymentService
+    PayeeResolvers -->|calls| PayeeService
+    PaymentResolvers -->|uses schema| PaymentSchema
+    PayeeResolvers -->|uses schema| PayeeSchema
+    
+    %% BFF Consumers
+    subgraph Consumers ["BFF Consumers"]
+        direction TB
+        WebBFF["web-bff<br/>(Apollo Server)"]
+        MobileBFF["mobile-bff<br/>(Apollo Server)"]
+        
+        WebBFF -->|imports| Schema
+        WebBFF -->|imports resolvers| GraphQLResolvers
+        WebBFF -->|configures with| WebAdapter
+        WebBFF -->|uses| PaymentService
+        WebBFF -->|uses| PayeeService
+        
+        MobileBFF -->|imports| Schema
+        MobileBFF -->|imports resolvers| GraphQLResolvers
+        MobileBFF -->|configures with| MobileAdapter
+        MobileBFF -->|uses| PaymentService
+        MobileBFF -->|uses| PayeeService
+    end
+    
+    %% External Systems
+    subgraph External ["External Systems"]
+        direction TB
+        PaymentAPI["Payment Provider API"]
+        PayeeRegistry["Payee Registry API"]
+        Wiremock["Wiremock Stub"]
+        
+        Wiremock -->|mocks| PaymentAPI
+        Wiremock -->|mocks| PayeeRegistry
+    end
+    
+    %% External connections
+    HG -->|HTTP| PaymentAPI
+    HPD -->|HTTP| PayeeRegistry
+    
+    %% Test & Development
+    subgraph Testing ["Testing & Examples"]
+        E2E["E2E Tests<br/>(Playwright)"]
+        Examples["Examples<br/>(shared-graphql/examples)"]
+        UnitTests["Unit Tests<br/>(Jest/Vitest)"]
+        
+        E2E -->|tests| WebBFF
+        Examples -->|demonstrates| SF
+        UnitTests -->|tests pure functions| L2
+        UnitTests -->|tests services with mocks| L3
+    end
+    
+    %% Environment-driven wiring (dashed lines)
+    SF -.->|USE_WIREMOCK=true| HG
+    SF -.->|USE_WIREMOCK=false| MG
+    SF -.->|USE_REAL_PAYEE_API=true| HPD
+    SF -.->|USE_REAL_PAYEE_API=false| MPD
+    
+    %% Styling for clarity
+    classDef layer1 fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef layer2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef layer3 fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef layer4 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef external fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef consumers fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    classDef testing fill:#fce4ec,stroke:#ad1457,stroke-width:2px
+    
+    class L1 layer1
+    class L2 layer2
+    class L3 layer3
+    class L4 layer4
+    class External external
+    class Consumers consumers
+    class Testing testing
+```
+#### 3 layers organization
+```mermaid
+flowchart TB
   %% Shared library and internal structure
   subgraph shared-graphql ["shared-graphql (shared library)"]
     direction TB
-    SF["Service Factory\ncreateServices()"]
+    SF["Service Factory<br/>createServices()"]
+    
     subgraph Core ["core (pure functions)"]
       direction LR
-      PayeeValidation["payee-validation.ts\npure business logic"]
-      PaymentValidation["payment-validation.ts\npure business logic"]
+      PayeeValidation["payee-validation.ts<br/>pure business logic"]
+      PaymentValidation["payment-validation.ts<br/>pure business logic"]
     end
+    
     subgraph Infra ["infra"]
       direction LR
       CL["ConsoleLogger"]
@@ -389,6 +571,7 @@ The following diagram shows the `shared-graphql` library and its consumers.
       MPD["MockPayeeDataSource"]
       HPD["HttpPayeeDataSource"]
     end
+    
     subgraph Ports ["ports (interfaces)"]
       direction LR
       ILogger["ILogger"]
@@ -396,18 +579,20 @@ The following diagram shows the `shared-graphql` library and its consumers.
       IPS["IPaymentStore"]
       IPDS["IPayeeDataSource"]
     end
+    
     subgraph Services ["services (functional factories)"]
       direction TB
-      PaymentService["PaymentService\n(functional factory)"]
-      PayeeService["PayeeService\n(functional factory)"]
+      PaymentService["PaymentService<br/>(functional factory)"]
+      PayeeService["PayeeService<br/>(functional factory)"]
     end
+    
     subgraph GraphQL ["graphql / resolvers / schema"]
       direction TB
-      Schema["Schemas\npayee-schema.ts, payment-schema.ts"]
-      PaymentResolvers["Payment Resolvers\npayment-resolvers.ts"]
-      PayeeResolvers["Payee Resolvers\npayee-resolvers.ts"]
-      Helpers["Helpers\npayee-helpers.ts"]
-      Factories["Factories\nservice-factory.ts"]
+      Schema["Schemas<br/>payee-schema.ts, payment-schema.ts"]
+      PaymentResolvers["Payment Resolvers<br/>payment-resolvers.ts"]
+      PayeeResolvers["Payee Resolvers<br/>payee-resolvers.ts"]
+      Helpers["Helpers<br/>payee-helpers.ts"]
+      Factories["Factories<br/>service-factory.ts"]
     end
 
     SF --> PaymentService
@@ -436,7 +621,7 @@ The following diagram shows the `shared-graphql` library and its consumers.
   end
 
   %% Consumers of the shared library
-  subgraph Consumers
+  subgraph Consumers ["Consumers"]
     direction TB
     WebBFF["web-bff"]
     MobileBFF["mobile-bff"]
@@ -455,11 +640,11 @@ The following diagram shows the `shared-graphql` library and its consumers.
   Examples -->|exercise| SF
 
   %% External systems & stubs
-  subgraph External
+  subgraph External ["External"]
     direction TB
     PaymentAPI["External Payment Provider"]
-    PayeeRegistry["Payee Registry\n(Bank API / KYC)"]
-    Wiremock["Wiremock Stub\n(USE_WIREMOCK=true)"]
+    PayeeRegistry["Payee Registry<br/>(Bank API / KYC)"]
+    Wiremock["Wiremock Stub<br/>(USE_WIREMOCK=true)"]
   end
 
   %% Gateway relationships and selection logic
@@ -478,7 +663,6 @@ The following diagram shows the `shared-graphql` library and its consumers.
   SF -.->|else| MPD
   Wiremock -->|mocks payment endpoints| HttpPaymentGateway
 ```
-
 ### Diagram Notes
 
 - **Key file:** `src/factories/service-factory.ts` wires logger, store, and gateway selection. It uses `USE_WIREMOCK` to pick `HttpPaymentGateway` vs `MockGateway`.
