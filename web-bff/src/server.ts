@@ -2,46 +2,320 @@ import express from 'express';
 import { ApolloServer } from 'apollo-server-express';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { payeeTypeDefs } from '../../shared-graphql/src/graphql/payee-schema';
+import { paymentTypeDefs } from '../../shared-graphql/src/graphql/payment-schema';
 import { createServices } from '../../shared-graphql/src/factories/service-factory';
 import { makePayeeResolvers } from '../../shared-graphql/src/graphql/payee-resolvers';
+import { makePaymentResolvers } from '../../shared-graphql/src/graphql/payment-resolvers';
+import { createPaymentService } from '../../shared-graphql/src/services/payment-service-functional';
+import { ILogger } from '../../shared-graphql/src/ports/logger';
+import { IPaymentStore } from '../../shared-graphql/src/ports/payment-store';
+import { Payment } from '../../shared-graphql/src/types/payment';
 
-// Create shared services with factory (uses env flags or defaults)
-const services = createServices();
+/**
+ * WEB BFF - Extension Scenarios
+ * 
+ * Shows different extension patterns for web consumers:
+ * 1. Session-aware logging with user context
+ * 2. Redis-backed payment store (simulated)
+ * 3. Audit trail for compliance
+ * 4. Rate limiting and fraud detection
+ * 5. Web-specific GraphQL fields (pagination, sorting)
+ */
 
-// Get base resolvers from shared library
-const baseResolvers = makePayeeResolvers(services);
+// Scenario 1: Session-aware logger with request tracing
+const createWebLogger = (sessionId?: string): ILogger => ({
+  info: (message: string, meta?: any) => {
+    console.log(`[WEB] [SESSION:${sessionId}] [INFO]`, message, meta ?? '');
+  },
+  warn: (message: string, meta?: any) => {
+    console.warn(`[WEB] [SESSION:${sessionId}] [WARN]`, message, meta ?? '');
+  },
+  error: (message: string, meta?: any) => {
+    console.error(`[WEB] [SESSION:${sessionId}] [ERROR]`, message, meta ?? '');
+    // Could send to error tracking (Sentry, etc.)
+  }
+});
 
-const webTypeDefs = `
-extend type ValidatePayeeResult {
-  validationId: ID!
+// Scenario 2: Redis-backed payment store (simulated for demo)
+const createRedisPaymentStore = (): IPaymentStore => {
+  // In real app: use Redis client
+  const cache = new Map<string, Payment>();
+  
+  return {
+    create: async (payload: Omit<Payment, 'id' | 'status' | 'createdAt'>): Promise<Payment> => {
+      const id = `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const createdAt = new Date().toISOString();
+      const payment: Payment = { id, ...payload, status: 'PENDING', createdAt } as Payment;
+      
+      // Web-specific: Store in Redis with TTL
+      cache.set(id, payment);
+      console.log(`[Redis] SET payment:${id} EX 3600`);
+      
+      return payment;
+    },
+    
+    updateStatus: async (paymentId: string, status: Payment['status'], providerRef?: string): Promise<void> => {
+      const p = cache.get(paymentId);
+      if (!p) throw new Error('NOT_FOUND');
+      p.status = status;
+      if (providerRef) p.providerRef = providerRef;
+      cache.set(paymentId, p);
+      console.log(`[Redis] UPDATE payment:${paymentId} status=${status}`);
+    },
+    
+    get: async (paymentId: string): Promise<Payment | null> => {
+      console.log(`[Redis] GET payment:${paymentId}`);
+      return cache.get(paymentId) ?? null;
+    }
+  };
+};
+
+// Scenario 3: Audit trail wrapper
+interface AuditEvent {
+  timestamp: string;
+  action: string;
+  userId?: string;
+  metadata: any;
 }
-`;
 
-// Web BFF adds web-specific fields
+const auditLog: AuditEvent[] = [];
+
+function logAudit(action: string, userId: string | undefined, metadata: any) {
+  auditLog.push({
+    timestamp: new Date().toISOString(),
+    action,
+    userId,
+    metadata
+  });
+  console.log(`[AUDIT] ${action}`, { userId, metadata });
+}
+
+// Scenario 4: Rate limiting (simplified)
+const rateLimitMap = new Map<string, number[]>();
+
+function checkRateLimit(userId: string, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(userId) || [];
+  
+  // Remove old requests outside window
+  const recentRequests = userRequests.filter(time => now - time < windowMs);
+  
+  if (recentRequests.length >= limit) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(userId, recentRequests);
+  return true;
+}
+
+// Create services with web-specific overrides
+const baseServices = createServices({
+  logger: createWebLogger('default-session'),
+  paymentStore: createRedisPaymentStore()
+});
+
+// Scenario 5: Wrap services with web-specific business logic
+const webPaymentService = {
+  ...baseServices.paymentService,
+  
+  // Add fraud detection layer
+  createPaymentWithFraudCheck: async (input: any, userId: string) => {
+    logAudit('PAYMENT_ATTEMPT', userId, { amount: input.amount, currency: input.currency });
+    
+    // Web-specific: Check rate limit
+    if (!checkRateLimit(userId, 10, 60000)) { // 10 requests per minute
+      logAudit('RATE_LIMIT_EXCEEDED', userId, { input });
+      return { success: false, error: 'RATE_LIMIT_EXCEEDED' };
+    }
+    
+    // Web-specific: Fraud detection
+    if (input.amount > 10000) {
+      logAudit('HIGH_VALUE_TRANSACTION', userId, { amount: input.amount });
+      // Could trigger additional verification
+    }
+    
+    const result = await baseServices.paymentService.createPayment(input);
+    
+    if (result.success) {
+      logAudit('PAYMENT_SUCCESS', userId, { paymentId: result.paymentId });
+    } else {
+      logAudit('PAYMENT_FAILED', userId, { reason: result.reason });
+    }
+    
+    return result;
+  },
+  
+  // Web-specific: Get payment history with pagination
+  getPaymentHistory: async (userId: string, page: number = 1, limit: number = 20) => {
+    // In real app: query from database with pagination
+    logAudit('GET_PAYMENT_HISTORY', userId, { page, limit });
+    return {
+      payments: [],
+      total: 0,
+      page,
+      limit,
+      hasMore: false
+    };
+  }
+};
+
+// Get base resolvers
+const basePayeeResolvers = makePayeeResolvers(baseServices);
+const basePaymentResolvers = makePaymentResolvers(baseServices);
+
+// Scenario 6: Extend resolvers with web-specific features
 const webResolvers = {
   Query: {
-    ...baseResolvers.Query,
+    ...basePayeeResolvers.Query,
+    ...basePaymentResolvers.Query,
+    
+    // Override with session context
     validatePayee: async (_: any, { input }: any, context: any) => {
-      const result = await services.payeeService.validatePayee(input);
+      const sessionId = context.sessionId;
+      const userId = context.userId;
+      
+      logAudit('VALIDATE_PAYEE', userId, input);
+      
+      const result = await baseServices.payeeService.validatePayee(input);
+      
       return {
         ...result,
-        validationId: `val_${Date.now()}`
+        validationId: `val_${Date.now()}`,
+        sessionId,
+        timestamp: new Date().toISOString(),
+        // Web-specific: suggest similar payees from history
+        suggestedPayees: [] // Could query user's previous payees
+      };
+    },
+    
+    // Web-only: get payment history with pagination
+    paymentHistory: async (_: any, { page, limit }: any, context: any) => {
+      return await webPaymentService.getPaymentHistory(context.userId, page, limit);
+    },
+    
+    // Web-only: get audit trail
+    getAuditTrail: async (_: any, { userId, fromDate, toDate }: any, context: any) => {
+      // Admin only - check permissions
+      if (!context.isAdmin) {
+        throw new Error('UNAUTHORIZED');
+      }
+      
+      return auditLog.filter(event => {
+        if (userId && event.userId !== userId) return false;
+        if (fromDate && event.timestamp < fromDate) return false;
+        if (toDate && event.timestamp > toDate) return false;
+        return true;
+      });
+    }
+  },
+  
+  Mutation: {
+    ...basePaymentResolvers.Mutation,
+    
+    // Override with fraud detection
+    createPayment: async (_: any, { input }: any, context: any) => {
+      return await webPaymentService.createPaymentWithFraudCheck(input, context.userId);
+    },
+    
+    // Web-only: batch payment creation
+    createBatchPayments: async (_: any, { inputs }: any, context: any) => {
+      logAudit('BATCH_PAYMENT_ATTEMPT', context.userId, { count: inputs.length });
+      
+      const results = await Promise.all(
+        inputs.map((input: any) => 
+          webPaymentService.createPaymentWithFraudCheck(input, context.userId)
+        )
+      );
+      
+      return {
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results
       };
     }
   }
 };
 
+// Web-specific GraphQL extensions
+const webTypeDefs = `
+extend type ValidatePayeeResult {
+  validationId: ID!
+  sessionId: String
+  timestamp: String
+  suggestedPayees: [String!]
+}
+
+type PaymentHistoryResult {
+  payments: [Payment!]!
+  total: Int!
+  page: Int!
+  limit: Int!
+  hasMore: Boolean!
+}
+
+type AuditEvent {
+  timestamp: String!
+  action: String!
+  userId: String
+  metadata: String
+}
+
+type BatchPaymentResult {
+  successful: Int!
+  failed: Int!
+  results: [CreatePaymentResult!]!
+}
+
+extend type Query {
+  paymentHistory(page: Int, limit: Int): PaymentHistoryResult!
+  getAuditTrail(userId: String, fromDate: String, toDate: String): [AuditEvent!]!
+}
+
+extend type Mutation {
+  createBatchPayments(inputs: [CreatePaymentInput!]!): BatchPaymentResult!
+}
+`;
+
 async function start() {
   const app = express();
+  
+  // Middleware to extract session/user context
+  app.use((req, res, next) => {
+    (req as any).sessionId = req.headers['x-session-id'] || 'anonymous';
+    (req as any).userId = req.headers['x-user-id'] || 'guest';
+    (req as any).isAdmin = req.headers['x-role'] === 'admin';
+    next();
+  });
 
-  const schema = makeExecutableSchema({ typeDefs: [payeeTypeDefs], resolvers: webResolvers as any });
+  const schema = makeExecutableSchema({ 
+    typeDefs: [payeeTypeDefs, paymentTypeDefs, webTypeDefs], 
+    resolvers: webResolvers as any 
+  });
 
-  const server = new ApolloServer({ schema });
+  const server = new ApolloServer({ 
+    schema,
+    context: ({ req }: any) => ({
+      sessionId: req.sessionId,
+      userId: req.userId,
+      isAdmin: req.isAdmin
+    })
+  });
+  
   await server.start();
   server.applyMiddleware({ app, path: '/graphql' });
 
   app.listen(4002, () => {
     console.log('🚀 Web BFF ready at http://localhost:4002/graphql');
+    console.log(`
+    🌐 Web-specific extensions:
+    - Session-aware logging
+    - Redis-backed storage
+    - Complete audit trail
+    - Rate limiting & fraud detection
+    - Payment history with pagination
+    - Batch payment operations
+    `);
   });
 }
 

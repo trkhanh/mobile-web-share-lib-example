@@ -1,4 +1,4 @@
-import { createPayeeService } from '../src/services/payee-service';
+import { createPayeeService } from '../src/services/payee-service-functional';
 
 const mockDataSource = {
   fetchRegisteredName: async (accountNumber: string, bankCode: string) => {
@@ -11,6 +11,7 @@ const mockDataSource = {
 
 const logger = {
   info: (msg: string, meta?: any) => console.log('[logger] INFO', msg, meta),
+  warn: (msg: string, meta?: any) => console.warn('[logger] WARN', msg, meta),
   error: (msg: string, err?: any) => console.error('[logger] ERROR', msg, err)
 };
 

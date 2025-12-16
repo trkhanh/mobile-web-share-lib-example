@@ -1,16 +1,22 @@
-import { ConsoleLogger } from '../infra/console-logger';
-import { InMemoryPaymentStore } from '../infra/in-memory-payment-store';
-import { MockGateway } from '../infra/mock-gateway';
-import { HttpPaymentGateway } from '../infra/http-gateway';
-import { MockPayeeDataSource } from '../infra/mock-payee-data-source';
-import { HttpPayeeDataSource } from '../infra/http-payee-data-source';
-import { PaymentService } from '../services/payment-service';
-import { PayeeService } from '../services/payee-service';
+import { createConsoleLogger } from '../infra/console-logger-functional';
+import { createInMemoryPaymentStore } from '../infra/in-memory-payment-store-functional';
+import { createMockGateway } from '../infra/mock-gateway-functional';
+import { createHttpPaymentGateway } from '../infra/http-gateway-functional';
+import { createMockPayeeDataSource } from '../infra/mock-payee-data-source-functional';
+import { createHttpPayeeDataSource } from '../infra/http-payee-data-source-functional';
+import { createPaymentService, PaymentService } from '../services/payment-service-functional';
+import { createPayeeService, PayeeService } from '../services/payee-service-functional';
 import { ILogger } from '../ports/logger';
 import { IPaymentGateway } from '../ports/gateway';
 import { IPaymentStore } from '../ports/payment-store';
 import { IPayeeDataSource } from '../ports/payee-data-source';
 
+/**
+ * Functional factory pattern:
+ * - Composes services using functional factories
+ * - No class instantiation ceremony
+ * - Pure dependency injection
+ */
 export interface SharedServices {
   logger: ILogger;
   paymentService: PaymentService;
@@ -33,8 +39,8 @@ export function createServices(overrides?: {
    *   abstractions (`IPaymentStore`, `IPaymentGateway`, `ILogger`, `IPayeeDataSource`)
    *   rather than concrete implementations; concrete wiring happens here.
    */
-  const logger = overrides?.logger ?? new ConsoleLogger();
-  const paymentStore = overrides?.paymentStore ?? new InMemoryPaymentStore();
+  const logger = overrides?.logger ?? createConsoleLogger();
+  const paymentStore = overrides?.paymentStore ?? createInMemoryPaymentStore();
   
   // Payment gateway selection
   let paymentGateway: IPaymentGateway;
@@ -42,9 +48,9 @@ export function createServices(overrides?: {
     paymentGateway = overrides.paymentGateway;
   } else if (process.env.USE_WIREMOCK === 'true') {
     const url = process.env.PAYMENT_STUB_URL ?? 'http://localhost:8080';
-    paymentGateway = new HttpPaymentGateway(url);
+    paymentGateway = createHttpPaymentGateway(url);
   } else {
-    paymentGateway = new MockGateway();
+    paymentGateway = createMockGateway();
   }
 
   // Payee data source selection (similar pattern to payment gateway)
@@ -53,13 +59,22 @@ export function createServices(overrides?: {
     payeeDataSource = overrides.payeeDataSource;
   } else if (process.env.USE_PAYEE_REGISTRY === 'true') {
     const url = process.env.PAYEE_REGISTRY_URL ?? 'http://localhost:8080';
-    payeeDataSource = new HttpPayeeDataSource(url);
+    payeeDataSource = createHttpPayeeDataSource(url);
   } else {
-    payeeDataSource = new MockPayeeDataSource();
+    payeeDataSource = createMockPayeeDataSource();
   }
 
-  const paymentService = new PaymentService(paymentStore, paymentGateway, logger);
-  const payeeService = new PayeeService(payeeDataSource, logger);
+  // Create services using functional factories (no "new" keyword)
+  const paymentService = createPaymentService({
+    store: paymentStore,
+    gateway: paymentGateway,
+    logger
+  });
+
+  const payeeService = createPayeeService({
+    dataSource: payeeDataSource,
+    logger
+  });
 
   return { logger, paymentService, payeeService };
 }

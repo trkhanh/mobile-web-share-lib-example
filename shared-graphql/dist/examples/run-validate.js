@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const payee_service_1 = require("../src/services/payee-service");
+const payee_service_functional_1 = require("../src/services/payee-service-functional");
 const mockDataSource = {
     fetchRegisteredName: async (accountNumber, bankCode) => {
         // Simple mocked lookup
@@ -13,10 +13,11 @@ const mockDataSource = {
 };
 const logger = {
     info: (msg, meta) => console.log('[logger] INFO', msg, meta),
+    warn: (msg, meta) => console.warn('[logger] WARN', msg, meta),
     error: (msg, err) => console.error('[logger] ERROR', msg, err)
 };
 async function main() {
-    const service = (0, payee_service_1.createPayeeService)({ dataSource: mockDataSource, logger });
+    const service = (0, payee_service_functional_1.createPayeeService)({ dataSource: mockDataSource, logger });
     const inputs = [
         { accountNumber: '12345678', accountName: 'Acme Corporation', bankCode: '010' },
         { accountNumber: '11111111', accountName: 'Jon Doe', bankCode: '020' },

@@ -1,4 +1,3 @@
-import { PaymentService } from '../src/services/payment-service';
 import { createServices } from '../src/factories/service-factory';
 
 async function run() {

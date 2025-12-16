@@ -1,11 +1,12 @@
 import { SharedServices } from '../factories/service-factory';
 
 /**
- * GraphQL resolver factory for payees
+ * Functional GraphQL resolver factory for payees
  *
- * SOLID notes:
- * - Single Responsibility: adapts PayeeService methods to GraphQL resolver handlers.
- * - Dependency Inversion: receives SharedServices from the factory.
+ * Functional approach:
+ * - Thin adapter functions over service methods
+ * - Pure functional composition
+ * - GraphQL resolvers are naturally functional
  */
 export const makePayeeResolvers = (services: SharedServices) => {
   const { payeeService } = services;
@@ -14,6 +15,9 @@ export const makePayeeResolvers = (services: SharedServices) => {
     Query: {
       validatePayee: async (_: any, { input }: any) => {
         return await payeeService.validatePayee(input);
+      },
+      validatePayeeBatch: async (_: any, { inputs }: any) => {
+        return await payeeService.validateBatch(inputs);
       }
     }
   };

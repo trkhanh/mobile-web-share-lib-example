@@ -1,17 +1,17 @@
-import { PaymentService } from '../../services/payment-service';
-import { InMemoryPaymentStore } from '../../infra/in-memory-payment-store';
-import { MockGateway } from '../../infra/mock-gateway';
+import { createPaymentService } from '../../services/payment-service-functional';
+import { createInMemoryPaymentStore } from '../../infra/in-memory-payment-store-functional';
+import { createMockGateway } from '../../infra/mock-gateway-functional';
 import { ILogger } from '../../ports/logger';
 
 const logger: ILogger = { info: () => {}, warn: () => {}, error: () => {} };
 
 describe('PaymentService', () => {
   test('creates and completes a valid payment', async () => {
-    const store = new InMemoryPaymentStore();
-    const gateway = new MockGateway();
-    const svc = new PaymentService(store, gateway, logger);
+    const store = createInMemoryPaymentStore();
+    const gateway = createMockGateway();
+    const svc = createPaymentService({ store, gateway, logger });
 
-    const result = await svc.createPayment({ amount: 50, currency: 'USD', fromAccount: 'A', toAccount: 'B' });
+    const result = await svc.createPayment({ amount: 50, currency: 'USD', fromAccount: '12345678', toAccount: '87654321' });
     expect(result.success).toBe(true);
     expect(result.paymentId).toBeDefined();
 
@@ -21,11 +21,11 @@ describe('PaymentService', () => {
   });
 
   test('fails authorization for invalid amount', async () => {
-    const store = new InMemoryPaymentStore();
-    const gateway = new MockGateway();
-    const svc = new PaymentService(store, gateway, logger);
+    const store = createInMemoryPaymentStore();
+    const gateway = createMockGateway();
+    const svc = createPaymentService({ store, gateway, logger });
 
-    const result = await svc.createPayment({ amount: 0, currency: 'USD', fromAccount: 'A', toAccount: 'B' });
+    const result = await svc.createPayment({ amount: 0, currency: 'USD', fromAccount: '12345678', toAccount: '87654321' });
     expect(result.success).toBe(false);
     expect(result.reason).toBeDefined();
   });
