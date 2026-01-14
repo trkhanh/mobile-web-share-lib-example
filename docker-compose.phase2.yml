@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # PHASE 2: SuperGraph Architecture with Apollo Federation
+  # ============================================================================
+
+  # SuperGraph Gateway - Single entry point
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PAYMENT_SUBGRAPH_URL=http://payment-subgraph:4001/graphql
+      - USER_SUBGRAPH_URL=http://user-subgraph:4002/graphql
+    depends_on:
+      - payment-subgraph
+      - user-subgraph
+    networks:
+      - supergraph-network
+
+  # Payment Subgraph - Independent microservice
+  payment-subgraph:
+    build:
+      context: ./shared-graphql
+      dockerfile: Dockerfile.subgraph
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+      - USE_WIREMOCK=false
+    networks:
+      - supergraph-network
+
+  # User Subgraph - Independent microservice
+  user-subgraph:
+    build:
+      context: ./user-subgraph
+      dockerfile: Dockerfile
+    ports:
+      - "4002:4002"
+    environment:
+      - PORT=4002
+    networks:
+      - supergraph-network
+
+networks:
+  supergraph-network:
+    driver: bridge

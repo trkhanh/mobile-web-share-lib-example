@@ -1,0 +1,22 @@
+{
+  "name": "user-subgraph",
+  "version": "1.0.0",
+  "description": "User Subgraph - Apollo Federation V2",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node -r ts-node/register ./src/index.ts",
+    "start:built": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@apollo/subgraph": "^2.5.0",
+    "apollo-server": "^3.13.0",
+    "graphql": "^16.6.0",
+    "graphql-tag": "^2.12.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.0"
+  }
+}

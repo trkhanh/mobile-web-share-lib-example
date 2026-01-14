@@ -1,17 +1,20 @@
 {
   "name": "@company/shared-graphql",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "start:subgraph": "npm run build && node dist/subgraph-server.js",
     "test:smoke": "npm run build && node dist/examples/test-validate.js",
     "start:example": "npm run build && node dist/examples/run-validate.js",
     "test:payment": "npm run build && node dist/examples/payment-test.js",
     "lint": "echo \"No linter configured\""
   },
   "dependencies": {
+    "@apollo/subgraph": "^2.5.0",
     "@types/node-fetch": "^2.6.13",
+    "apollo-server": "^3.13.0",
     "graphql": "^16.6.0",
     "node-fetch": "^3.3.2",
     "yarn": "^1.22.22"
