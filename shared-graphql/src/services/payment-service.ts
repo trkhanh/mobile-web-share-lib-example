@@ -28,6 +28,10 @@ export class PaymentService {
   // service easy to test and extend.
   constructor(private store: IPaymentStore, private gateway: IPaymentGateway, private logger: ILogger) {}
 
+  async listPayments(): Promise<Payment[]> {
+    return await this.store.list();
+  }
+
   async createPayment(req: CreatePaymentRequest) {
     // create pending record
     const payment = await this.store.create({
@@ -35,7 +39,8 @@ export class PaymentService {
       currency: req.currency,
       fromAccount: req.fromAccount,
       toAccount: req.toAccount,
-      status: 'PENDING'
+      status: 'PENDING',
+      userId: req.userId
     } as any);
 
     // authorize via gateway abstraction

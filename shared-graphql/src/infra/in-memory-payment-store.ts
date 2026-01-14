@@ -32,4 +32,8 @@ export class InMemoryPaymentStore implements IPaymentStore {
   async get(paymentId: string): Promise<Payment | null> {
     return this.map.get(paymentId) ?? null;
   }
+
+  async list(): Promise<Payment[]> {
+    return Array.from(this.map.values());
+  }
 }

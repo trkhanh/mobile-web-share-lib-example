@@ -7,6 +7,7 @@ export interface Payment {
   status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
   providerRef?: string;
   createdAt: string;
+  userId: string;
 }
 
 export interface CreatePaymentRequest {
@@ -14,4 +15,5 @@ export interface CreatePaymentRequest {
   currency: string;
   fromAccount: string;
   toAccount: string;
+  userId: string;
 }

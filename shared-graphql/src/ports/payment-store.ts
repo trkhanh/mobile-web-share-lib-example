@@ -16,4 +16,5 @@ export interface IPaymentStore {
   create(payload: Omit<Payment, 'id' | 'status' | 'createdAt'>): Promise<Payment>;
   updateStatus(paymentId: string, status: Payment['status'], providerRef?: string): Promise<void>;
   get(paymentId: string): Promise<Payment | null>;
+  list(): Promise<Payment[]>;
 }

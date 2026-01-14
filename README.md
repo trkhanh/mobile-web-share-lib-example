@@ -1,5 +1,33 @@
 # Mobile / Web Shared Payee Validation Example
 
+## 🏗️ Multi-Architecture Demonstration
+
+This repository demonstrates two architectural approaches for GraphQL services:
+
+### **Phase 1: Shared Library Pattern** ← You Are Here
+- Shared `@company/shared-graphql` npm package with business logic
+- Multiple BFFs (Mobile, Web) import and extend the library
+- OOP patterns: SOLID principles, Decorator, Factory, Dependency Injection
+- Each BFF runs independent Apollo Server
+
+### **Phase 2: SuperGraph with Apollo Federation**
+- Independent federated subgraphs (Payment, User)
+- Apollo Gateway composing unified schema
+- Cross-subgraph entity resolution
+- Single API endpoint for all clients
+
+**📋 Switch to Phase 2:**
+```bash
+git checkout phase-2-supergraph
+./run-phase2.sh
+```
+
+[📖 Phase 2 Guide](./PHASE2_GUIDE.md) | [📋 Migration Plan](./SuperGraphPlan.md)
+
+---
+
+## Phase 1 Architecture (Current)
+
 This repository demonstrates a small, practical approach to sharing business logic (payee validation) between mobile and web BFFs.
 
 Contents
